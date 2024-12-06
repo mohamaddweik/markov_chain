@@ -1,0 +1,60 @@
+Authored by Mohamad Dweik
+
+==Description==
+
+This project implements a Markov Chain Text Generator. The program builds a Markov chain from a given text file, where each word is treated as a state, and the transitions are determined by word sequences in the input file. It can generate random "tweets" based on the constructed Markov chain.
+
+==Program Database==
+
+1)MarkovChain: Represents the main data structure for the Markov chain.
+2)MarkovNode: A node in the Markov chain that stores a word and its frequency list.
+3)MarkovNodeFrequency: Stores a reference to another MarkovNode and the frequency of transitions to it.
+4)LinkedList: Used to store the nodes of the Markov chain sequentially.
+
+==Functions==
+
+First File: Markov Chain Implementation
+
+1)get_random_number: Generates a random number between 0 and a given maximum.
+2)get_node_from_database: Retrieves a node from the database if it matches the given data.
+3)add_to_database: Adds a new node to the database or retrieves an existing one.
+4)add_node_to_frequency_list: Updates or adds a transition between two nodes in the chain.
+5)free_database: Frees all allocated memory for the Markov chain and its database.
+6)print_database: Prints the entire structure of the Markov chain for debugging purposes.
+7)get_first_random_node: Selects a valid starting node from the Markov chain for tweet generation.
+8)get_next_random_node: Picks the next node based on the frequency list of the current node.
+9)generate_tweet: Generates a tweet of a specified maximum length starting from a given node.
+
+Second File: Main Program:
+
+1)fill_database: Reads input from a file, tokenizes it, and builds the Markov chain.
+2)main: Parses command-line arguments, builds the Markov chain, and generates the specified number of tweets.
+
+
+==Program Files==
+
+
+markov_chain.h: Header file containing structure definitions and function prototypes.
+markov_chain.c: Contains all Markov chain-related functions.
+main.c: Entry point for the program and contains functions for input handling and execution.
+
+
+==How to Compile==
+
+gcc -Wall -Wextra -Wvla -std=c99 tweets_generator.c markov_chain.c linked_list.c -o run
+
+
+==Input==
+
+./run <seed> <num_tweets> <file_path> <words_to_read>
+
+<seed>: Seed for the random number generator.
+<num_tweets>: Number of tweets to generate.
+<file_path>: Path to the input text file.
+<words_to_read>: Optional. Maximum number of words to read from the file. If omitted, the entire file is read.
+
+
+==Output==
+
+The program generates random tweets based on the input text file and prints them to the console.
+
