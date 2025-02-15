@@ -1,88 +1,87 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "markov_chain.h"
 
 /**
- * Get random number between 0 and max_number [0, max_number).
- * @param max_number
- * @return Random number
+ * Get random number between 0 and max_number-1.
+ * @param max_number Maximum number (exclusive)
+ * @return Random number in [0, max_number)
  */
 int get_random_number(int max_number)
 {
     return rand() % max_number;
 }
 
-Node* get_node_from_database(MarkovChain *markov_chain, char *data_ptr){
+Node* get_node_from_database(MarkovChain *markov_chain, char *data_ptr) {
     Node* current = markov_chain->database->first;
-    while(current != NULL){
-        if(strcmp(current->data->data, data_ptr) == 0)
+    while (current != NULL) {
+        if (strcmp(current->data->data, data_ptr) == 0)
             return current;
         current = current->next;
     }
     return NULL;
 }
 
-Node* add_to_database(MarkovChain *markov_chain, char *data_ptr){
-    //printf("data arrived is: %s\n", data_ptr);
-    Node* node = get_node_from_database(markov_chain,data_ptr);
-    if( node != NULL) // node is already in the linkedList
+Node* add_to_database(MarkovChain *markov_chain, char *data_ptr) {
+    Node* node = get_node_from_database(markov_chain, data_ptr);
+    if (node != NULL)  // Word already exists in the database
         return node;
-    else{
-        MarkovNode* markov_node = malloc(sizeof(MarkovNode)); //duplicate the word
+    else {
+        MarkovNode* markov_node = malloc(sizeof(MarkovNode));
+        if (!markov_node) return NULL;
         markov_node->data = malloc(strlen(data_ptr) + 1);
-        if (markov_node->data == NULL) {
+        if (!markov_node->data) {
+            free(markov_node);
             return NULL;
         }
         strcpy(markov_node->data, data_ptr);
         markov_node->frequency_list = NULL;
-        markov_node->frequency_list_size=0;
-        int status = add(markov_chain->database,markov_node);
-
-        if(status == 0){ //node added successfully
+        markov_node->frequency_list_size = 0;
+        int status = add(markov_chain->database, markov_node);
+        if (status == 0) { // Node added successfully
             return markov_chain->database->last;
-        }
-        else {
+        } else {
+            free(markov_node->data);
+            free(markov_node);
             return NULL;
         }
     }
 }
 
-int add_node_to_frequency_list(MarkovNode *first_node, MarkovNode *second_node){
-    if(first_node->data[strlen(first_node->data)-1] == '.')
+int add_node_to_frequency_list(MarkovNode *first_node, MarkovNode *second_node) {
+    if (!first_node || !second_node) return 1;
+
+    // Do not add followers for sentence-ending words.
+    int len = strlen(first_node->data);
+    if (len > 0 && first_node->data[len - 1] == '.')
         return 0;
 
-    if(first_node->frequency_list == NULL){
-        first_node->frequency_list = malloc(sizeof(MarkovNodeFrequency)*2);
-        if(first_node->frequency_list == NULL)
-            return 1; //fail
-        first_node->frequency_list[0].markov_node = second_node;
-        first_node->frequency_list[0].frequency = 1;
-        first_node->frequency_list[1].markov_node = NULL;
-        first_node->frequency_list[1].frequency = 0;
-        first_node->frequency_list_size=1;
-        return 0; //success
-    }
-    // Check if the second node already exists in the frequency list
+    // Check if second_node is already in the frequency list.
     for (int i = 0; i < first_node->frequency_list_size; i++) {
-        if (strcmp(second_node->data, first_node->frequency_list[i].markov_node->data) == 0) { // word already in the list
-            (first_node->frequency_list[i].frequency)++;
+        if (strcmp(second_node->data, first_node->frequency_list[i].markov_node->data) == 0) {
+            first_node->frequency_list[i].frequency++;
             return 0;
         }
     }
 
-    MarkovNodeFrequency* newList = realloc(first_node->frequency_list, (first_node->frequency_list_size + 2) * sizeof(MarkovNodeFrequency));
-    if (newList == NULL)
-        return 1; // Fail
+    // Expand the frequency list by one entry.
+    MarkovNodeFrequency *newList = realloc(first_node->frequency_list,
+                                           (first_node->frequency_list_size + 1) * sizeof(MarkovNodeFrequency));
+    if (!newList)
+        return 1; // Memory allocation failed
 
     first_node->frequency_list = newList;
     first_node->frequency_list[first_node->frequency_list_size].markov_node = second_node;
     first_node->frequency_list[first_node->frequency_list_size].frequency = 1;
-    first_node->frequency_list[first_node->frequency_list_size+1].markov_node = NULL;
-    first_node->frequency_list[first_node->frequency_list_size+1].frequency = 0;
     first_node->frequency_list_size++;
+
     return 0;
 }
 
-void free_database(MarkovChain ** ptr_chain){
+void free_database(MarkovChain **ptr_chain) {
+    if (!ptr_chain || !(*ptr_chain))
+        return;
     MarkovChain *markov_chain = *ptr_chain;
     Node* current = markov_chain->database->first;
     while (current != NULL) {
@@ -101,102 +100,84 @@ void free_database(MarkovChain ** ptr_chain){
     *ptr_chain = NULL;
 }
 
-void print_database(MarkovChain* markovChain) {
-    if (!markovChain || !markovChain->database || !markovChain->database->first) {
-        printf("The database is empty or invalid.\n");
-        return;
+/*
+ * Revised get_first_random_node: scan the entire linked list and choose a node
+ * whose word does not end with a period.
+ */
+MarkovNode* get_first_random_node(MarkovChain *markov_chain) {
+    // First, count all nodes with a word that does not end with a period.
+    int valid_count = 0;
+    Node *current = markov_chain->database->first;
+    while (current != NULL) {
+        char *word = current->data->data;
+        int len = strlen(word);
+        if (len > 0 && word[len - 1] != '.')
+            valid_count++;
+        current = current->next;
     }
+    if (valid_count == 0)
+        return NULL;  // No valid starting node found.
 
-    printf("\n===== Markov Chain Database =====\n");
-
-    Node* node = markovChain->database->first;
-    int size = markovChain->database->size;
-
-    for (int i = 0; i < size; i++) {
-        if (!node || !node->data) {
-            break; // Handle unexpected null node
+    // Choose one uniformly at random.
+    int target = get_random_number(valid_count);
+    current = markov_chain->database->first;
+    while (current != NULL) {
+        char *word = current->data->data;
+        int len = strlen(word);
+        if (len > 0 && word[len - 1] != '.') {
+            if (target == 0)
+                return current->data;
+            target--;
         }
-
-        printf("Node: %s\n", node->data->data);
-        printf("  Frequency List: ");
-
-        if (!node->data->frequency_list) {
-            printf("None\n");
-        } else {
-            int k = 0;
-            while (node->data->frequency_list[k].markov_node != NULL) {
-                printf("%s (%d)",
-                       node->data->frequency_list[k].markov_node->data,
-                       node->data->frequency_list[k].frequency);
-                k++;
-                if (node->data->frequency_list[k].markov_node != NULL) {
-                    printf(", ");
-                }
-            }
-            printf("\n");
-        }
-
-        node = node->next;
-        if (node) {
-            printf("  |\n  v\n");
-        }
+        current = current->next;
     }
-
-    printf("===== End of Database =====\n\n");
+    return NULL; // Should not reach here.
 }
 
-MarkovNode* get_first_random_node(MarkovChain *markov_chain){
-    for (int j = 0; j < 15; ++j) {
-        int rand = get_random_number(markov_chain->database->size);
-        int k = 0;
-        Node* current = markov_chain->database->first;
-        while (k < rand && current != NULL) { //reach the random node
-            current = current->next;
-            k++;
-        }
-        if (current != NULL && current->data->frequency_list_size != 0) {
-            return current->data;
-        }
-    }
-    return NULL;
-}
-
-MarkovNode* get_next_random_node(MarkovNode *cur_markov_node){
+MarkovNode* get_next_random_node(MarkovNode *cur_markov_node) {
     int size = cur_markov_node->frequency_list_size;
-    int frequencies=0;
+    int total_frequency = 0;
     MarkovNodeFrequency *list = cur_markov_node->frequency_list;
     for (int i = 0; i < size; ++i) {
-        frequencies+= list[i].frequency;
+        total_frequency += list[i].frequency;
     }
-    int rand = get_random_number(frequencies);
-
+    int rand_val = get_random_number(total_frequency);
     int counter = 0;
     for (int i = 0; i < size; ++i) {
         counter += list[i].frequency;
-        if(counter >= rand+1){
+        if (counter > rand_val) {
             return list[i].markov_node;
         }
     }
-    printf("shouldn't be here");
+    fprintf(stderr, "Error: get_next_random_node reached an unexpected state.\n");
     return NULL;
 }
 
-void generate_tweet(MarkovNode *first_node, int max_length){
+void generate_tweet(MarkovNode *first_node, int max_length) {
     if (first_node == NULL) {
         fprintf(stderr, "Error: First node is NULL\n");
         return;
     }
-    printf("%s ",first_node->data);
-    MarkovNode *next = get_next_random_node(first_node);
-    for (int i = 0; i < max_length-1; ++i) {
-        printf("%s",next->data);
-        if(next->frequency_list_size == 0 || i == max_length-1)
+
+    int count = 0;
+    MarkovNode *current = first_node;
+    while (count < max_length) {
+        printf("%s", current->data);
+        count++;
+
+        int len = strlen(current->data);
+        // If the word ends with a period and we've printed at least 2 words, stop.
+        if (len > 0 && current->data[len - 1] == '.' && count >= 2)
+            break;
+        if (count == max_length)
+            break;
+        if (current->frequency_list_size == 0)
             break;
 
-        if(i != max_length-2) {
-            next = get_next_random_node(next);
-            printf(" ");
-        }
+        // Get the next word.
+        current = get_next_random_node(current);
+        printf(" ");
     }
     printf("\n");
 }
+
